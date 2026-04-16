@@ -20,3 +20,7 @@ Thumbs.db
 
 # Logs
 *.log
+
+# Spec docs
+规范文档.md
+需求文档.md
