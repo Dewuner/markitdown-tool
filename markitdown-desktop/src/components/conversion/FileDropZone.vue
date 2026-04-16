@@ -1,0 +1,129 @@
+<script setup lang="ts">
+import { ref } from 'vue';
+import { Upload, FileText } from 'lucide-vue-next';
+import { Button } from '@/components/ui/button';
+import { useAppStore } from '@/lib/composables/useAppStore';
+import { convertFile, batchConvert, openFileDialog } from '@/lib/tauri';
+
+const { setStatus, setCurrentConversion, setError, setBatchProgress } =
+  useAppStore();
+
+const isDragging = ref(false);
+
+function onDragOver(e: DragEvent) {
+  e.preventDefault();
+  isDragging.value = true;
+}
+
+function onDragLeave() {
+  isDragging.value = false;
+}
+
+async function onDrop(e: DragEvent) {
+  e.preventDefault();
+  isDragging.value = false;
+
+  const files = e.dataTransfer?.files;
+  if (!files || files.length === 0) return;
+
+  const paths = Array.from(files).map((f) => {
+    // In Tauri, file.path gives the absolute path
+    return (f as unknown as { path: string }).path;
+  }).filter(Boolean);
+
+  if (paths.length === 0) return;
+
+  if (paths.length === 1) {
+    await handleSingleFile(paths[0]);
+  } else {
+    await handleBatchFiles(paths);
+  }
+}
+
+async function handleSingleFile(filePath: string) {
+  setStatus('converting');
+  setError(null);
+  try {
+    const result = await convertFile(filePath);
+    if (result.success && result.data) {
+      setCurrentConversion(result.data);
+      setStatus('completed');
+    } else {
+      setError(result.error || '转换失败');
+      setStatus('error');
+    }
+  } catch (err) {
+    setError(String(err));
+    setStatus('error');
+  }
+}
+
+async function handleBatchFiles(filePaths: string[]) {
+  setStatus('converting');
+  setBatchProgress(0, filePaths.length);
+  setError(null);
+  try {
+    const result = await batchConvert(filePaths);
+    if (result.success && result.data?.data) {
+      const completed = result.data.data.results.find((r: { success: boolean }) => r.success);
+      if (completed?.data) {
+        setCurrentConversion(completed.data);
+      }
+      setBatchProgress(filePaths.length, filePaths.length);
+      setStatus('completed');
+    } else {
+      setError(result.error || '批量转换失败');
+      setStatus('error');
+    }
+  } catch (err) {
+    setError(String(err));
+    setStatus('error');
+  }
+}
+
+async function onBrowseFiles() {
+  try {
+    const result = await openFileDialog();
+    if (result.success && result.data && result.data.length > 0) {
+      if (result.data.length === 1) {
+        await handleSingleFile(result.data[0]);
+      } else {
+        await handleBatchFiles(result.data);
+      }
+    }
+  } catch (err) {
+    setError(String(err));
+  }
+}
+</script>
+
+<template>
+  <div
+    class="flex flex-1 items-center justify-center p-8"
+    @dragover="onDragOver"
+    @dragleave="onDragLeave"
+    @drop="onDrop"
+  >
+    <div
+      class="flex w-full max-w-md flex-col items-center rounded-lg border-2 border-dashed p-12 transition-colors"
+      :class="isDragging ? 'border-zinc-900 bg-zinc-50' : 'border-zinc-300'"
+    >
+      <div
+        class="mb-4 flex h-16 w-16 items-center justify-center rounded-full"
+        :class="isDragging ? 'bg-zinc-200' : 'bg-zinc-100'"
+      >
+        <Upload v-if="!isDragging" class="h-8 w-8 text-zinc-400" />
+        <FileText v-else class="h-8 w-8 text-zinc-700" />
+      </div>
+      <p class="mb-1 text-sm font-medium text-zinc-900">
+        {{ isDragging ? '释放文件开始转换' : '拖拽文件到此处' }}
+      </p>
+      <p class="mb-4 text-xs text-zinc-400">
+        支持 PDF、DOCX、XLSX、PPTX、HTML
+      </p>
+      <Button variant="outline" size="sm" @click="onBrowseFiles">
+        浏览文件
+      </Button>
+    </div>
+  </div>
+</template>
