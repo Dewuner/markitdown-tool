@@ -66,18 +66,20 @@ function statusVariant(status: string): 'default' | 'secondary' | 'destructive' 
                 <span v-if="entry.file_size" class="ml-1">{{ formatSize(entry.file_size) }}</span>
               </p>
             </div>
-            <Badge :variant="statusVariant(entry.status)" class="shrink-0 text-[10px]">
-              {{ entry.status === 'completed' ? '完成' : entry.status === 'error' ? '失败' : '处理中' }}
-            </Badge>
+            <div class="flex shrink-0 items-center gap-1">
+              <Badge :variant="statusVariant(entry.status)" class="text-[10px]">
+                {{ entry.status === 'completed' ? '完成' : entry.status === 'error' ? '失败' : '处理中' }}
+              </Badge>
+              <Button
+                variant="ghost"
+                size="icon"
+                class="hidden h-5 w-5 text-zinc-400 hover:text-red-500 group-hover:flex"
+                @click.stop="removeFromHistory(entry.id)"
+              >
+                <Trash2 class="h-3 w-3" />
+              </Button>
+            </div>
           </div>
-          <Button
-            variant="ghost"
-            size="icon"
-            class="mt-1 hidden h-5 w-5 text-zinc-400 hover:text-red-500 group-hover:flex"
-            @click.stop="removeFromHistory(entry.id)"
-          >
-            <Trash2 class="h-3 w-3" />
-          </Button>
         </div>
         <div v-if="state.history.length === 0" class="py-8 text-center text-xs text-zinc-400">
           暂无转换记录
