@@ -172,6 +172,7 @@ fn get_python_command(app: &AppHandle) -> String {
 
     let project_root = resource_dir
         .join("..")
+        .join("..")
         .join("..");
 
     let venv_python = if cfg!(target_os = "windows") {
@@ -211,6 +212,7 @@ fn get_python_script_path(app: &AppHandle) -> Result<String, String> {
     // Dev mode: resource_dir is src-tauri/target/debug/
     // Production: resource_dir is alongside the binary
     let script_path = resource_dir
+        .join("..")
         .join("..")
         .join("..")
         .join("python-core")
