@@ -10,7 +10,7 @@ const { state } = useAppStore();
 <template>
   <main class="flex flex-1 flex-col overflow-hidden">
     <ConversionProgress v-if="state.status === 'converting'" />
-    <FileDropZone v-if="!state.currentConversion && state.status === 'idle'" />
+    <FileDropZone v-else-if="!state.currentConversion" />
     <SplitPaneWorkspace v-else-if="state.currentConversion" />
   </main>
 </template>

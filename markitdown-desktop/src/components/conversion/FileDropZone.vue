@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button';
 import { useAppStore } from '@/lib/composables/useAppStore';
 import { convertFile, batchConvert, openFileDialog } from '@/lib/tauri';
 
-const { setStatus, setCurrentConversion, setError, setBatchProgress } =
+const { state, setStatus, setCurrentConversion, setError, setBatchProgress } =
   useAppStore();
 
 const isDragging = ref(false);
@@ -120,6 +120,9 @@ async function onBrowseFiles() {
       </p>
       <p class="mb-4 text-xs text-zinc-400">
         支持 PDF、DOCX、XLSX、PPTX、HTML
+      </p>
+      <p v-if="state.status === 'error' && state.error" class="mb-4 text-xs text-red-500">
+        {{ state.error }}
       </p>
       <Button variant="outline" size="sm" @click="onBrowseFiles">
         浏览文件
