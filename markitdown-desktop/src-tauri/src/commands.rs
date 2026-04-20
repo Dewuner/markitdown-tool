@@ -14,7 +14,7 @@ pub async fn convert_file(
 
     let output = app
         .shell()
-        .command(get_python_command())
+        .command(get_python_command(&app))
         .args([&script_path, "convert", &file_path])
         .output()
         .await
@@ -54,7 +54,7 @@ pub async fn batch_convert(
 
     let output = app
         .shell()
-        .command(get_python_command())
+        .command(get_python_command(&app))
         .args(&args)
         .output()
         .await
@@ -89,11 +89,11 @@ pub async fn batch_convert(
 pub async fn get_history(
     state: State<'_, AppState>,
 ) -> Result<IpcResponse<Vec<HistoryEntry>>, String> {
-    let pool = state.db.lock().map_err(|e| e.to_string())?;
+    let pool = state.db.lock().map_err(|e| e.to_string())?.clone();
     let rows = sqlx::query(
         "SELECT id, filename, source_path, output_path, status, error_message, markdown_content, image_paths, file_size, created_at FROM conversions ORDER BY created_at DESC"
     )
-    .fetch_all(&*pool)
+    .fetch_all(&pool)
     .await
     .map_err(|e| format!("DB query failed: {}", e))?;
 
@@ -121,10 +121,10 @@ pub async fn delete_history(
     state: State<'_, AppState>,
     id: i64,
 ) -> Result<IpcResponse<()>, String> {
-    let pool = state.db.lock().map_err(|e| e.to_string())?;
+    let pool = state.db.lock().map_err(|e| e.to_string())?.clone();
     sqlx::query("DELETE FROM conversions WHERE id = ?1")
         .bind(id)
-        .execute(&*pool)
+        .execute(&pool)
         .await
         .map_err(|e| format!("DB delete failed: {}", e))?;
 
@@ -243,7 +243,7 @@ fn get_python_script_path(app: &AppHandle) -> Result<String, String> {
 }
 
 async fn save_to_history(state: &AppState, data: &ConversionData) -> Result<(), String> {
-    let pool = state.db.lock().map_err(|e| e.to_string())?;
+    let pool = state.db.lock().map_err(|e| e.to_string())?.clone();
 
     let image_paths_json = data
         .image_paths
@@ -263,7 +263,7 @@ async fn save_to_history(state: &AppState, data: &ConversionData) -> Result<(), 
     .bind(&data.markdown_content)
     .bind(&image_paths_json)
     .bind(file_size_val)
-    .execute(&*pool)
+    .execute(&pool)
     .await
     .map_err(|e| format!("DB insert failed: {}", e))?;
 
