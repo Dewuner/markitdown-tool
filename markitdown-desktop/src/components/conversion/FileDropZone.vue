@@ -3,9 +3,9 @@ import { ref } from 'vue';
 import { Upload, FileText } from 'lucide-vue-next';
 import { Button } from '@/components/ui/button';
 import { useAppStore } from '@/lib/composables/useAppStore';
-import { convertFile, batchConvert, openFileDialog } from '@/lib/tauri';
+import { convertFile, batchConvert, openFileDialog, getHistory } from '@/lib/tauri';
 
-const { state, setStatus, setCurrentConversion, setError, setBatchProgress } =
+const { state, setStatus, setCurrentConversion, setError, setBatchProgress, setHistory } =
   useAppStore();
 
 const isDragging = ref(false);
@@ -48,6 +48,7 @@ async function handleSingleFile(filePath: string) {
     if (result.success && result.data) {
       setCurrentConversion(result.data);
       setStatus('completed');
+      refreshHistory();
     } else {
       setError(result.error || '转换失败');
       setStatus('error');
@@ -71,6 +72,7 @@ async function handleBatchFiles(filePaths: string[]) {
       }
       setBatchProgress(filePaths.length, filePaths.length);
       setStatus('completed');
+      refreshHistory();
     } else {
       setError(result.error || '批量转换失败');
       setStatus('error');
@@ -93,6 +95,17 @@ async function onBrowseFiles() {
     }
   } catch (err) {
     setError(String(err));
+  }
+}
+
+async function refreshHistory() {
+  try {
+    const result = await getHistory();
+    if (result.success && result.data) {
+      setHistory(result.data);
+    }
+  } catch {
+    // ignore
   }
 }
 </script>
