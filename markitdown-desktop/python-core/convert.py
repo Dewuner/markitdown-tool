@@ -40,15 +40,17 @@ def convert_single(file_path: str) -> str:
         return make_response(False, error=f"Not a file: {file_path}")
 
     try:
-        md = MarkItDown()
-        result = md.convert(str(path))
-
-        # Extract images to sibling assets/ folder
-        assets_dir = path.parent / "assets"
-        assets_dir.mkdir(exist_ok=True)
-
         image_paths = []
-        markdown_content = result.text_content or ""
+
+        suffix = path.suffix.lower()
+        if suffix == ".pdf":
+            markdown_content = convert_pdf_with_tables(path)
+        elif suffix in (".docx", ".doc"):
+            markdown_content = convert_docx_with_tables(path)
+        else:
+            md = MarkItDown()
+            result = md.convert(str(path))
+            markdown_content = result.text_content or ""
 
         output_path = path.with_suffix(".md")
         output_path.write_text(markdown_content, encoding="utf-8")
@@ -70,6 +72,134 @@ def convert_single(file_path: str) -> str:
             False,
             error=f"Conversion failed for {path.name}: {str(e)}",
         )
+
+
+def convert_docx_with_tables(path: Path) -> str:
+    """Convert DOCX to markdown preserving table structure using python-docx.
+    Falls back to markitdown if python-docx is not available."""
+    try:
+        from docx import Document
+    except ImportError:
+        md = MarkItDown()
+        result = md.convert(str(path))
+        return result.text_content or ""
+
+    doc = Document(str(path))
+    parts = []
+
+    for element in doc.element.body:
+        tag = element.tag.split("}")[-1] if "}" in element.tag else element.tag
+
+        if tag == "p":
+            from docx.text.paragraph import Paragraph
+            para = Paragraph(element, doc)
+            text = para.text.strip()
+            if text:
+                style_name = (para.style.name or "").lower() if para.style else ""
+                if "heading 1" in style_name:
+                    parts.append(f"# {text}")
+                elif "heading 2" in style_name:
+                    parts.append(f"## {text}")
+                elif "heading 3" in style_name:
+                    parts.append(f"### {text}")
+                elif "heading 4" in style_name:
+                    parts.append(f"#### {text}")
+                else:
+                    parts.append(text)
+
+        elif tag == "tbl":
+            from docx.table import Table
+            table = Table(element, doc)
+            rows_data = []
+            for row in table.rows:
+                row_cells = [cell.text.strip().replace("\n", " ") for cell in row.cells]
+                rows_data.append(row_cells)
+            if rows_data:
+                gfm = table_to_gfm(rows_data)
+                if gfm:
+                    parts.append(gfm)
+
+    return "\n\n".join(parts)
+
+
+def convert_pdf_with_tables(path: Path) -> str:
+    """Convert PDF to markdown using pdfplumber for table structure.
+    Falls back to markitdown if pdfplumber is not available."""
+    try:
+        import pdfplumber
+    except ImportError:
+        md = MarkItDown()
+        result = md.convert(str(path))
+        return result.text_content or ""
+
+    parts = []
+
+    with pdfplumber.open(str(path)) as pdf:
+        for page in pdf.pages:
+            tables = page.find_tables()
+
+            if not tables:
+                text = page.extract_text()
+                if text:
+                    parts.append(text)
+                continue
+
+            # Sort tables by vertical position
+            tables.sort(key=lambda t: t.bbox[1])
+
+            prev_bottom = 0
+            for table in tables:
+                top = table.bbox[1]
+                bottom = table.bbox[3]
+
+                # Text above this table
+                if top > prev_bottom + 1:
+                    region = page.crop((0, prev_bottom, page.width, top))
+                    text = region.extract_text()
+                    if text and text.strip():
+                        parts.append(text.strip())
+
+                # Table as GFM
+                rows = table.extract()
+                if rows:
+                    gfm = table_to_gfm(rows)
+                    if gfm:
+                        parts.append(gfm)
+
+                prev_bottom = bottom
+
+            # Text after last table
+            if prev_bottom < page.height - 1:
+                region = page.crop((0, prev_bottom, page.width, page.height))
+                text = region.extract_text()
+                if text and text.strip():
+                    parts.append(text.strip())
+
+    return "\n\n".join(parts)
+
+
+def table_to_gfm(rows: list) -> str:
+    """Convert extracted table rows to GFM markdown."""
+    if not rows:
+        return ""
+
+    num_cols = max(len(row) for row in rows)
+    if num_cols == 0:
+        return ""
+
+    lines = []
+    for i, row in enumerate(rows):
+        cells = list(row) + [None] * (num_cols - len(row))
+        cell_strs = [
+            str(cell or "").replace("|", "\\|").replace("\n", " ").strip()
+            for cell in cells
+        ]
+        lines.append("| " + " | ".join(cell_strs) + " |")
+
+        if i == 0:
+            lines.append("| " + " | ".join(["---"] * num_cols) + " |")
+
+    return "\n".join(lines)
 
 
 def batch_convert(file_paths: list[str]) -> str:
