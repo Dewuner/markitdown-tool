@@ -95,6 +95,14 @@ function renderMarkdown() {
     return `<img src="${escapedHref}" alt="${escapedAlt}"${titleAttr} />`;
   };
 
+  // Escape raw HTML to prevent injection (e.g. <style> from PDF text)
+  renderer.html = function ({ text }: { text: string }) {
+    return text
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;');
+  };
+
   marked.use({ renderer });
   renderedHtml.value = marked(state.currentConversion.markdown_content) as string;
 }
