@@ -1,44 +1,42 @@
 <script setup lang="ts">
-import { ref } from 'vue';
+import { ref, onMounted, onUnmounted } from 'vue';
 import { Upload, FileText } from 'lucide-vue-next';
 import { Button } from '@/components/ui/button';
 import { useAppStore } from '@/lib/composables/useAppStore';
 import { convertFile, batchConvert, openFileDialog, getHistory } from '@/lib/tauri';
+import { listen, type UnlistenFn } from '@tauri-apps/api/event';
 
 const { state, setStatus, setCurrentConversion, setError, setBatchProgress, setHistory } =
   useAppStore();
 
 const isDragging = ref(false);
+const unlisteners: UnlistenFn[] = [];
 
-function onDragOver(e: DragEvent) {
-  e.preventDefault();
-  isDragging.value = true;
-}
+onMounted(async () => {
+  unlisteners.push(
+    await listen('tauri://drag-enter', () => {
+      isDragging.value = true;
+    }),
+    await listen('tauri://drag-leave', () => {
+      isDragging.value = false;
+    }),
+    await listen<{ paths: string[] }>('tauri://drag-drop', async (e) => {
+      isDragging.value = false;
+      const paths = e.payload.paths;
+      if (!paths || paths.length === 0) return;
 
-function onDragLeave() {
-  isDragging.value = false;
-}
+      if (paths.length === 1) {
+        await handleSingleFile(paths[0]);
+      } else {
+        await handleBatchFiles(paths);
+      }
+    }),
+  );
+});
 
-async function onDrop(e: DragEvent) {
-  e.preventDefault();
-  isDragging.value = false;
-
-  const files = e.dataTransfer?.files;
-  if (!files || files.length === 0) return;
-
-  const paths = Array.from(files).map((f) => {
-    // In Tauri, file.path gives the absolute path
-    return (f as unknown as { path: string }).path;
-  }).filter(Boolean);
-
-  if (paths.length === 0) return;
-
-  if (paths.length === 1) {
-    await handleSingleFile(paths[0]);
-  } else {
-    await handleBatchFiles(paths);
-  }
-}
+onUnmounted(() => {
+  unlisteners.forEach((fn) => fn());
+});
 
 async function handleSingleFile(filePath: string) {
   setStatus('converting');
@@ -113,9 +111,6 @@ async function refreshHistory() {
 <template>
   <div
     class="flex flex-1 items-center justify-center p-8"
-    @dragover="onDragOver"
-    @dragleave="onDragLeave"
-    @drop="onDrop"
   >
     <div
       class="flex w-full max-w-md flex-col items-center rounded-lg border-2 border-dashed p-12 transition-colors"
