@@ -1,5 +1,6 @@
 import { reactive, ref } from 'vue';
 import type { HistoryEntry, ConversionData, AppStatus } from '@/lib/types';
+import { deleteHistory } from '@/lib/tauri';
 
 interface AppState {
   status: AppStatus;
@@ -39,7 +40,11 @@ export function useAppStore() {
   }
 
   function removeFromHistory(id: number) {
-    state.history = state.history.filter((e) => e.id !== id);
+    deleteHistory(id).then((result) => {
+      if (result.success) {
+        state.history = state.history.filter((e) => e.id !== id);
+      }
+    });
   }
 
   function toggleSidebar() {

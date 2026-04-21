@@ -26,7 +26,7 @@ function formatSize(bytes: number | null): string {
 }
 
 function statusVariant(status: string): 'default' | 'secondary' | 'destructive' {
-  if (status === 'completed') return 'default';
+  if (status === 'completed') return 'secondary';
   if (status === 'error') return 'destructive';
   return 'secondary';
 }
@@ -34,7 +34,7 @@ function statusVariant(status: string): 'default' | 'secondary' | 'destructive' 
 
 <template>
   <aside
-    class="flex flex-col border-r border-zinc-200 bg-zinc-50 transition-all duration-200"
+    class="flex flex-col border-r border-zinc-200 bg-zinc-50 transition-[width] duration-200"
     :class="state.sidebarCollapsed ? 'w-12' : 'w-64'"
   >
     <div class="flex h-10 items-center justify-between px-2">
