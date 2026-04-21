@@ -2,9 +2,22 @@
 import { ref, watch, onMounted } from 'vue';
 import { marked } from 'marked';
 import { createHighlighter, type Highlighter } from 'shiki';
+import { convertFileSrc } from '@tauri-apps/api/core';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useAppStore } from '@/lib/composables/useAppStore';
+
+function getDir(filepath: string): string {
+  const sep = filepath.includes('\\') ? '\\' : '/';
+  const idx = filepath.lastIndexOf(sep);
+  return idx >= 0 ? filepath.substring(0, idx) : '';
+}
+
+function joinPath(dir: string, relative: string): string {
+  const sep = dir.includes('\\') ? '\\' : '/';
+  const normalized = relative.replace(/[/\\]/g, sep);
+  return dir + sep + normalized;
+}
 
 const { state } = useAppStore();
 
@@ -64,6 +77,22 @@ function renderMarkdown() {
       .replace(/</g, '&lt;')
       .replace(/>/g, '&gt;');
     return `<pre class="shiki"><code>${escaped}</code></pre>`;
+  };
+
+  // Image renderer: convert local paths to Tauri asset URLs
+  renderer.image = function ({ href, title, text }: { href: string; title?: string; text?: string }) {
+    if (href && !href.startsWith('http') && !href.startsWith('data:')) {
+      const sourcePath = state.currentConversion?.source_path;
+      if (sourcePath) {
+        const sourceDir = getDir(sourcePath);
+        const absolutePath = joinPath(sourceDir, href);
+        href = convertFileSrc(absolutePath);
+      }
+    }
+    const escapedHref = (href || '').replace(/"/g, '&quot;');
+    const escapedAlt = (text || '').replace(/"/g, '&quot;');
+    const titleAttr = title ? ` title="${title.replace(/"/g, '&quot;')}"` : '';
+    return `<img src="${escapedHref}" alt="${escapedAlt}"${titleAttr} />`;
   };
 
   marked.use({ renderer });
